@@ -9,4 +9,6 @@ The simulation models 9 links:
  
 The following image is a sketch that shows the structure of the linkage and labels each link and angle:
 link![IMG_0348](https://github.com/riya-mitra/linkage_simulation/assets/67640140/20e45cbd-d0bf-43ac-b2b0-c5fceecba632)
-![IMG_0348](https://github.com/riya-mitra/linkage_simulation/assets/67640140/20e45cbd-d0bf-43ac-b2b0-c5fceecba632)
+![IMG_0349](https://github.com/riya-mitra/linkage_simulation/assets/67640140/b337a8a5-90db-4b44-bf2f-e6b0e5fe1a96)
+
+
