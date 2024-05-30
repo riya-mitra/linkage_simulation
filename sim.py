@@ -22,12 +22,13 @@ frozen = False
 theta_snap_back = False
 
 a_pos = 15
+snap_frame = None
 phase_offset = 0
 
 alpha_max = np.radians(80)
 alpha_min = np.radians(10)
 theta_max = np.radians(160)
-theta_min = np.radians(100)
+theta_min = np.radians(110)
 gamma_min = np.radians(0)
 gamma_max = np.radians(40)
 
@@ -36,7 +37,6 @@ max_height_tracker = {'max_height': 0}
 
 def calculate_positions(a_x_start, theta, alpha, gamma, omega):
     
-    theta_snap_back = False
 
     fixed_point_x = 13.5
     fixed_point_y = 5
@@ -75,26 +75,22 @@ def calculate_positions(a_x_start, theta, alpha, gamma, omega):
     # link C
 
     common_end_x = (e1_x + e2_x) / 2
-    common_end_y = fixed_e_y  # 5
+    common_end_y = 5  # Ensuring that the y-coordinate is exactly 5
+
+    # Calculating the x-component based on the fixed length l_c
+    dx = np.sqrt(l_c**2 - (common_end_y - b_y)**2) if l_c**2 >= (common_end_y - b_y)**2 else 0
+    if common_end_x >= b_x:
+        common_end_x = b_x + dx  # Assuming common_end_x should be to the right of B
+    else:
+        common_end_x = b_x - dx  # Assuming common_end_x should be to the left of B
     
-     
-    dir_x = common_end_x - b_x
-    dir_y = common_end_y - b_y
-    
-    length_to_common_end = np.sqrt(dir_x**2 + dir_y**2)
-    dir_x_normalized = dir_x / length_to_common_end
-    dir_y_normalized = dir_y / length_to_common_end
-    
-    angle_to_common_end = np.arctan2(common_end_y - b_y, common_end_x - b_x)
-    
-    c_x = b_x + dir_x_normalized * l_c
-    c_y = b_y + dir_y_normalized * l_c
-    
+    c_x = common_end_x
+    c_y = common_end_y
     
     # link F
     
-    f_start_x = (e1_x + e2_x + c_x) / 3
-    f_start_y = 5  
+    f_start_x = e1_x
+    f_start_y = fixed_e_y
     
     f_x = f_start_x - l_f
     f_y = f_start_y
@@ -102,10 +98,10 @@ def calculate_positions(a_x_start, theta, alpha, gamma, omega):
     # pushdown link
     
     e1_mid_x = d1_x + (e1_x - d1_x) / 2
-    e1_mid_y = d1_y + (5 - d1_y) / 2
+    e1_mid_y = d1_y + (fixed_point_y - d1_y) / 2
     
     e1_dir_x = e1_x - d1_x
-    e1_dir_y = 5 - d1_y
+    e1_dir_y = fixed_point_y - d1_y
     
     # The direction vector for E1
     length = np.sqrt(e1_dir_x**2 + e1_dir_y**2)
@@ -126,12 +122,12 @@ def calculate_positions(a_x_start, theta, alpha, gamma, omega):
     positions = {
         'A' : ([a_x, a_x_start], [a_y, a_y]),
         'B' : ([fixed_point_x, b_x], [fixed_point_y, b_y]),
-        'C' : ([b_x, c_x], [b_y, common_end_y]), 
+        'C' : ([b_x, c_x], [b_y, c_y]), 
         'D1' : ([a_x, d1_x], [a_y, d1_y]), 
         'D2' : ([a_x, d2_x], [a_y, d2_y]), 
-        'E1' : ([d1_x, e1_x], [d1_y, 5]),
-        'E2' : ([d2_x, e2_x], [d2_y, 5]),
-        'F' : ([c_x, f_x], [5, f_y]),
+        'E1' : ([d1_x, e1_x], [d1_y, fixed_e_y]),
+        'E2' : ([d2_x, e2_x], [d2_y, fixed_e_y]),
+        'F' : ([e1_x, f_x], [fixed_e_y, f_y]),
         'Pushdown' : ([e1_mid_x, pushdown_end_x], [e1_mid_y, pushdown_end_y]),
         'Intersection1' : ([d1_x], [d1_y]),
         'Intersection2' : ([d2_x], [d2_y])
@@ -189,13 +185,17 @@ def animate(frame):
         # Maintain the snap and adjust phase to continue smoothly
         if snap_frame is None:
             snap_frame = frame
-            theta = np.radians(100)
+            theta = np.radians(120)
             arg = (theta - theta_mid) / theta_amp
             arg = np.clip(arg, -1, 1)
             phase_offset = np.arccos(arg)
             
+            
+            
         theta = theta_mid + theta_amp * np.cos(frame * speed + phase_offset)
         theta = np.clip(theta, theta_min, theta_max)
+        gamma = gamma_mid + gamma_amp * np.cos(frame * speed + phase_offset)
+        gamma = np.clip(gamma, gamma_min, gamma_max)
 
     positions = calculate_positions(a_x_start, theta, alpha, gamma, omega)
     
@@ -205,13 +205,8 @@ def animate(frame):
     
     if 4.9 <= b_y <= 5.5:
         frozen = True
-        if not theta_snap_back:
-            theta_snap_back 
-    else: 
-        frozen = False
-        theta_snap_back = False
-        snap_frame = None
-        
+        snap_frame = frame
+    
     if not frozen:
         gamma = gamma_mid + gamma_amp * np.cos(frame * speed)
         gamma = np.clip(gamma, gamma_min, gamma_max)
@@ -221,6 +216,8 @@ def animate(frame):
         b_y = 5
         if pushdown_end_y <= 5.1:
             frozen = False
+            theta_snap_back = True
+            snap_frame = None
             gamma = gamma_mid + gamma_amp * np.cos(frame * speed)
             gamma = np.clip(gamma, gamma_min, gamma_max)
             
@@ -236,8 +233,8 @@ def animate(frame):
     #     theta = np.clip(theta, theta_min, theta_max)
         
     
-    # positions = calculate_positions(a_x_start, theta, alpha, gamma, omega)
-    # print(theta_snap_back)
+    positions = calculate_positions(a_x_start, theta, alpha, gamma, omega)
+    print(frozen)
     
     
     # gamma = gamma_mid + gamma_amp * np.cos(frame * speed)
