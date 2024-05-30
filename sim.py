@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
+# global variables and initial inputs
+# these are the lengths i made my prototype with but you can change them in order to test different values
+
 l_a = 4.0 # Length of input rod A
 l_f = l_a
 l_d = 2.5  # Length of rods D
@@ -10,7 +13,6 @@ l_b = 3 # Length of rod B
 l_c = l_b  # Length of rod C (same length as B)
 l_p = 0.5
 
-# Initial angles (assuming some starting angles)
 theta = np.radians(120)
 alpha = np.radians(40)
 gamma = np.radians(40)
@@ -20,6 +22,7 @@ frozen = False
 theta_snap_back = False
 
 a_pos = 15
+phase_offset = 0
 
 alpha_max = np.radians(80)
 alpha_min = np.radians(10)
@@ -70,8 +73,6 @@ def calculate_positions(a_x_start, theta, alpha, gamma, omega):
         e2_x = d2_x 
         
     # link C
-   
-    
 
     common_end_x = (e1_x + e2_x) / 2
     common_end_y = fixed_e_y  # 5
@@ -85,10 +86,6 @@ def calculate_positions(a_x_start, theta, alpha, gamma, omega):
     dir_y_normalized = dir_y / length_to_common_end
     
     angle_to_common_end = np.arctan2(common_end_y - b_y, common_end_x - b_x)
-
-    # Link C, using the angle to calculate the start point based on the fixed length l_c
-    # c_x = b_x- l_c * np.cos(angle_to_common_end)
-    # c_y = b_y - l_c * np.sin(angle_to_common_end)
     
     c_x = b_x + dir_x_normalized * l_c
     c_y = b_y + dir_y_normalized * l_c
@@ -105,12 +102,11 @@ def calculate_positions(a_x_start, theta, alpha, gamma, omega):
     # pushdown link
     
     e1_mid_x = d1_x + (e1_x - d1_x) / 2
-    e1_mid_y = d1_y + (5 - d1_y) / 2  # Adjusted to account for the actual orientation of E1
+    e1_mid_y = d1_y + (5 - d1_y) / 2
     
     e1_dir_x = e1_x - d1_x
     e1_dir_y = 5 - d1_y
     
-    # Step 3: Determine the direction of the pushdown link
     # The direction vector for E1
     length = np.sqrt(e1_dir_x**2 + e1_dir_y**2)
     e1_dir_x /= length
@@ -121,17 +117,12 @@ def calculate_positions(a_x_start, theta, alpha, gamma, omega):
     pushdown_dir_x = e1_dir_x * cos_angle - e1_dir_y * sin_angle
     pushdown_dir_y = e1_dir_x * sin_angle + e1_dir_y * cos_angle
     
-    # Normalize the pushdown direction vector
-    
-    # Step 4: Calculate the end point of the pushdown link
     pushdown_end_x = e1_mid_x + pushdown_dir_x * l_p
     pushdown_end_y = e1_mid_y + pushdown_dir_y * l_p
 
 
     max_height_tracker['max_height'] = max(max_height_tracker['max_height'], d1_y - 5, d2_y - 5)
     
-
-
     positions = {
         'A' : ([a_x, a_x_start], [a_y, a_y]),
         'B' : ([fixed_point_x, b_x], [fixed_point_y, b_y]),
@@ -166,7 +157,7 @@ for idx, (name, coords) in enumerate(initial_positions.items()):
     else:
         lines[name], = ax.plot(*coords, color=colors[idx % len(colors)], lw=2, label=name)
 
-# Initialization function: plot the background of each frame
+# plot the background of each frame
 def init():
     for name, line in lines.items():
         line.set_data(*initial_positions[name])
@@ -177,13 +168,11 @@ def init():
 
 
 def animate(frame):
-    global theta, alpha, gamma, omega, frozen, theta_snap_back
-    
-    alpha_mid = (alpha_max + alpha_min) / 2
+    global theta, alpha, gamma, omega, frozen, theta_snap_back, snap_frame, phase_offset
+
     theta_mid = (theta_max + theta_min) / 2
     gamma_mid = (gamma_max + gamma_min) / 2
     
-    alpha_amp = (alpha_max - alpha_min) / 2
     theta_amp = (theta_max - theta_min) / 2
     gamma_amp = (gamma_max - gamma_min) / 2
     
@@ -196,6 +185,17 @@ def animate(frame):
     if not theta_snap_back:
         theta = theta_mid + theta_amp * np.cos(frame * speed)
         theta = np.clip(theta, theta_min, theta_max)
+    else:
+        # Maintain the snap and adjust phase to continue smoothly
+        if snap_frame is None:
+            snap_frame = frame
+            theta = np.radians(100)
+            arg = (theta - theta_mid) / theta_amp
+            arg = np.clip(arg, -1, 1)
+            phase_offset = np.arccos(arg)
+            
+        theta = theta_mid + theta_amp * np.cos(frame * speed + phase_offset)
+        theta = np.clip(theta, theta_min, theta_max)
 
     positions = calculate_positions(a_x_start, theta, alpha, gamma, omega)
     
@@ -205,14 +205,17 @@ def animate(frame):
     
     if 4.9 <= b_y <= 5.5:
         frozen = True
+        if not theta_snap_back:
+            theta_snap_back 
     else: 
         frozen = False
+        theta_snap_back = False
+        snap_frame = None
         
     if not frozen:
         gamma = gamma_mid + gamma_amp * np.cos(frame * speed)
         gamma = np.clip(gamma, gamma_min, gamma_max)
         
-     
     if frozen:
         gamma = 0
         b_y = 5
@@ -220,20 +223,21 @@ def animate(frame):
             frozen = False
             gamma = gamma_mid + gamma_amp * np.cos(frame * speed)
             gamma = np.clip(gamma, gamma_min, gamma_max)
-            theta_snap_back = True
             
     
-    if theta_snap_back:
-        theta = np.radians(100)
-        positions = calculate_positions(a_x_start, theta, alpha, gamma, omega)
-        theta_snap_back = False
+    # if theta_snap_back:
+    #     theta = np.radians(100)
+    #     positions = calculate_positions(a, theta, alpha, gamma, omega)
+    #     theta_snap_back = False
+        
+        # theta_snap_back = False
     # else:
     #     theta = theta_mid + theta_amp * np.cos(frame * speed)
     #     theta = np.clip(theta, theta_min, theta_max)
         
     
     # positions = calculate_positions(a_x_start, theta, alpha, gamma, omega)
-    print(theta_snap_back)
+    # print(theta_snap_back)
     
     
     # gamma = gamma_mid + gamma_amp * np.cos(frame * speed)
